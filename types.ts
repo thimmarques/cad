@@ -1,4 +1,3 @@
-
 export interface Client {
   id: string;
   name: string;
@@ -7,7 +6,7 @@ export interface Client {
   company: string;
   status: 'active' | 'inactive' | 'pending';
   notes: string;
-  createdAt: string;
+  created_at: string;
 }
 
 export interface ClientStats {

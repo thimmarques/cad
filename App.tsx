@@ -34,15 +34,25 @@ const Icons = {
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
-  const [clients, setClients] = useState<Client[]>(() => {
-    const saved = localStorage.getItem('crm_clients');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [clients, setClients] = useState<Client[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
+
+  const fetchClients = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('clients')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching clients:', error);
+    } else {
+      setClients(data || []);
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -59,8 +69,11 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('crm_clients', JSON.stringify(clients));
-  }, [clients]);
+    if (session) {
+      fetchClients();
+    }
+  }, [session, fetchClients]);
+
 
   const stats: ClientStats = {
     total: clients.length,
@@ -75,7 +88,7 @@ const App: React.FC = () => {
     { name: 'Inativo', value: stats.inactive, color: '#ef4444' },
   ];
 
-  const handleAddOrEdit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddOrEdit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const clientData = {
@@ -88,21 +101,43 @@ const App: React.FC = () => {
     };
 
     if (editingClient) {
-      setClients(clients.map(c => c.id === editingClient.id ? { ...c, ...clientData } : c));
+      const { error } = await supabase
+        .from('clients')
+        .update(clientData)
+        .eq('id', editingClient.id);
+
+      if (error) {
+        alert("Erro ao atualizar cliente.");
+      } else {
+        fetchClients();
+        closeModal();
+      }
     } else {
-      const newClient: Client = {
-        ...clientData,
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-      };
-      setClients([...clients, newClient]);
+      const { error } = await supabase
+        .from('clients')
+        .insert([clientData]);
+
+      if (error) {
+        alert("Erro ao cadastrar cliente.");
+      } else {
+        fetchClients();
+        closeModal();
+      }
     }
-    closeModal();
   };
 
-  const deleteClient = (id: string) => {
+  const deleteClient = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este cliente?')) {
-      setClients(clients.filter(c => c.id !== id));
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert("Erro ao excluir cliente.");
+      } else {
+        fetchClients();
+      }
     }
   };
 
